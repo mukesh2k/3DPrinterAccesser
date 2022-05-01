@@ -1,2 +1,5 @@
 inputf.f
 *.png
+*.gcode
+*.txt
+*.stl

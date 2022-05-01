@@ -34,7 +34,7 @@ class Float_layout(FloatLayout):
 
     def save_screenshot(self, obj):
         self.painter.export_to_png("screenshot.png")
-        test.run()
+        #  test.run()
 
     def clear_screen(self, obj):
         self.painter.canvas.clear()
