@@ -8,41 +8,78 @@ import serial
 
 
 def serialConnector():
-    serialPort = serial.Serial(port="/dev/ttyUSB0", baudrate=115200,
+    portal = "/dev/ttyUSB0"
+    cache = ""
+    serialPort = serial.Serial(port=portal, baudrate=115200,
                                bytesize=8, timeout=2, stopbits=serial.STOPBITS_ONE)
-    i = 100000
-    while i:
-        print(serialPort.read())
-        i -= 1
-    time.sleep(5)
-    print("Start")
-    res = bytes("G28", 'utf-8')
-    serialPort.write(res)
-    time.sleep(4)
-    serialPort.close()
+    serialPort.open()
+    fileScanner()
+    run()
+    Gcodes = GcodeParser()
+    # print(Gcodes)
+    print(len(Gcodes))
+    for u in Gcodes:
+        print(u)
+    return
+    i = 0
+    while i < len(Gcodes):
+        val = print(serialPort.read())
+        if len(cache) == 4:
+            cache.replace(cache[0], "")
+        cache += val
+        if cache == "wait":
+            os.system(f"echo {Gcodes[i]} > {portal}")
+            i += 1
+            time.sleep(0.5)
+    print("Completed")
 
 
-def par():
+def modifiedtime(lis):
+    stat = os.stat(pather+f"/{lis}")
+    return stat.st_mtime
+
+
+def fileScanner():
+    lis = []
+    global pather
+    pather = os.getcwd()
+    print("running")
+    while len(lis) == 0:
+        lis = os.listdir()
+        lis = [i for i in lis if "." in i and i[i.index('.'):] == '.png']
+    sort_list = sorted(lis, key=modifiedtime)
+    # TODO run(sort_list[0])
+    os.system(f"rm {sort_list[0]}")
+    print("done")
+    pass
+
+
+def GcodeParser():
     a = ""
     with open("this.gcode") as f:
         a += "".join(line for line in f if not line.isspace())
     a = a.splitlines()
     i = 0
+    gCode_commands = []
     for each in a:
         if ';' in each:
             each = each[:each.index(';')]
             if each == '':
                 continue
-        print(each)
+        gCode_commands.append(each)
+    return gCode_commands
 
 
-def run():
+def run(pngname):
     filename = "this.stl"
-    A = 256 * imread("screenshot.png")
+    A = 256 * imread(pngname)
+    pic = Image.open(pngname)
+    w, h = pic.size
+    print(str(w)+str(h))
     A = A[:, :, 2] + 1.0*A[:, :, 0]  # Compose RGBA channels to give depth
     A = gaussian_filter(A, 1)  # smoothing
     p = numpy2stl(A, "fun.stl", scale=0.05,
-                  mask_val=5., solid=True, max_width=70)
+                  mask_val=5., solid=True, max_width=w)
     print("Converion of STL complete")
     p = str(p)
     p = p.split("\\n")
@@ -62,5 +99,8 @@ def run():
     print("Gcode produced")
 
 
-par()
-# run()
+# fileScanner()
+Gcodes = GcodeParser()
+# print(Gcodes)
+for u in Gcodes:
+    print(u)
