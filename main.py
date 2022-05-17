@@ -1,23 +1,33 @@
+from concurrent.futures import thread
+import threading
 import time
 from matplotlib.pylab import imread
 from csdt_stl_tools import numpy2stl
 from scipy.ndimage import gaussian_filter
 import os
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageColor
 import serial
 
+portal = "/dev/ttyUSB0"
+cache = ""
 
-def serialConnector():
-    # TODO serial connector
-    portal = "/dev/ttyUSB0"
-    cache = ""
+
+def serialReader():
+    global serialPort
     serialPort = serial.Serial(port=portal, baudrate=115200,
                                bytesize=8, timeout=2, stopbits=serial.STOPBITS_ONE)
+    if serialPort.is_open():
+        serialPort.close()
     serialPort.open()
+    while 1:
+        print(serialPort.readline())
+    return
+
+
+def serialWriter():
     fileScanner()
-    run()
     Gcodes = GcodeParser()
-    # print(Gcodes)
+    serialPort.writelines("sdasdad")
     print(len(Gcodes))
     for u in Gcodes:
         print(u)
@@ -43,26 +53,39 @@ def modifiedtime(lis):
 def braille(inputString):
     inputString = inputString.lower()
     font = ImageFont.truetype('braille.ttf', 100)
-    framesize = (2100, 2200)
+    framesize = (200, 300)
     hori_limit = 22
-    veri_limit = 21
+    veri_limit = 10
     convertedstring = ""
     inputString = inputString.split(' ')
-    cur = 0
+    cur, curline = 0, 0
     for i in inputString:
         if cur+len(i) < hori_limit:
             convertedstring += (i+" ")
-            cur += len(i)
+            cur += len(i)+1
         elif cur+len(i) == hori_limit:
-            convertedstring += (i+" ")
+            convertedstring += i
             cur += len(i)
         else:
-            convertedstring += f"\n{i}"
-            cur = len(i)
-    bg = Image.new('RGBA', framesize)
-    draw = ImageDraw.Draw(bg)
-    draw.text((100, 100), convertedstring, font=font)
-    bg.save('out.png')
+            convertedstring += f"\n\n{i} "
+            cur = len(i)+1
+            curline += 1
+        if curline == veri_limit:
+            bg = Image.new('RGBA', framesize)
+
+            draw = ImageDraw.Draw(bg)
+            draw.text((100, 100), convertedstring, font=font)
+            bg.save('out.png')
+            #PNG2Gcode("out.png", 2.5, 210)
+            convertedstring = ""
+            curline = 0
+    if curline != 0:
+        bg = Image.new('RGBA', framesize, (0, 255, 0))
+        draw = ImageDraw.Draw(bg)
+        draw.text((100, 100), convertedstring, font=font, fill=(255, 0, 0))
+        bg.save('out.png')
+        PNG2Gcode("out.png", 2.5, 210)
+    print(convertedstring)
 
 
 def fileScanner():
@@ -72,9 +95,14 @@ def fileScanner():
     print("running")
     while len(lis) == 0:
         lis = os.listdir()
-        lis = [i for i in lis if "." in i and i[i.index('.'):] == '.png']
+        lis = [i for i in lis if "." in i and (
+            i[i.index('.'):] == '.png' or i[i.index('.'):] == '.txt')]
     sort_list = sorted(lis, key=modifiedtime)
-    # TODO run(sort_list[0])
+    name = sort_list[0]
+    if name[name.index('.'):] == ".png":
+        pass  # TODO
+    else:
+        pass  # TODO
     os.system(f"rm {sort_list[0]}")
     print("done")
     pass
@@ -97,6 +125,7 @@ def GcodeParser():
 
 def PNG2Gcode(pngname, heightmm, widthmm):
     filename = "this.stl"
+    print("Converion of STL started")
     A = 256 * imread(pngname)
     pic = Image.open(pngname)
     A = A[:, :, 2] + 1.0*A[:, :, 0]  # Compose RGBA channels to give depth
@@ -104,6 +133,7 @@ def PNG2Gcode(pngname, heightmm, widthmm):
     p = numpy2stl(A, "fun.stl", scale=heightmm*0.01,
                   mask_val=5., solid=True, max_width=widthmm)
     print("Converion of STL complete")
+    print("Writing of STL started")
     p = str(p)
     p = p.split("\\n")
     l = 0
@@ -117,16 +147,22 @@ def PNG2Gcode(pngname, heightmm, widthmm):
             continue
         file1.write(i+"\n")
     file1.close()
+    return
     print("Writing of STL complete")
-    os.system(f"slic3r-console -o this.gcode --load config.ini {filename}")
+    os.system(f"slic3r -o this.gcode --load config.ini {filename}")
     print("Gcode produced")
 
 
-# text = "Its not such a big problem, but If you paste a transparent background image on a transparent background using Image paste and pass a mass the edge will be black."
+text = "Its not such a big problem, but If you paste a transparent background image on a transparent background using Image paste and pass a mass the edge will be black."
 # #text = "you can see there are some black outlines around text. "
 # text = "".join("a\n" for i in range(21))
 # braille(text)
 
-p = GcodeParser()
-for i in p:
-    print(f"echo {i} > ttfasdas")
+# Original flow
+# fileScann
+if __name__ == "__main__":
+    print("hello")
+    thread1 = threading.Thread(target=fileScanner)
+    thread2 = threading.Thread(target=serialReader)
+    thread1.start()
+    thread2.start()

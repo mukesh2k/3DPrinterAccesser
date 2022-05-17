@@ -1,3 +1,4 @@
+#!/bin/bash
 apt install python3
 apt install pip
 apt-get install bluez-tools
@@ -21,4 +22,4 @@ wget https://raw.githubusercontent.com/mukesh2k/3DPrinterAccesser/main/braille.t
 pip install pyserial
 pip install matplotlib
 pip install csdt_stl_tools
-pip install PIL
+pip install Pillow
