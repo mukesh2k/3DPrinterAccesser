@@ -1,11 +1,9 @@
-from concurrent.futures import thread
-import threading
 import time
 from matplotlib.pylab import imread
 from csdt_stl_tools import numpy2stl
 from scipy.ndimage import gaussian_filter
 import os
-from PIL import Image, ImageDraw, ImageFont, ImageColor
+from PIL import Image, ImageDraw, ImageFont
 import serial
 
 portal = "/dev/ttyUSB0"
@@ -50,10 +48,12 @@ def modifiedtime(lis):
     return stat.st_mtime
 
 
+framesize = (300, 400)
+
+
 def braille(inputString):
     inputString = inputString.lower()
-    font = ImageFont.truetype('braille.ttf', 100)
-    framesize = (200, 300)
+    font = ImageFont.truetype('braille.ttf', 30)
     hori_limit = 22
     veri_limit = 10
     convertedstring = ""
@@ -76,15 +76,16 @@ def braille(inputString):
             draw = ImageDraw.Draw(bg)
             draw.text((100, 100), convertedstring, font=font)
             bg.save('out.png')
-            #PNG2Gcode("out.png", 2.5, 210)
+            # PNG2Gcode("out.png", 2.5, 210)
             convertedstring = ""
             curline = 0
     if curline != 0:
-        bg = Image.new('RGBA', framesize, (0, 255, 0))
+        bg = Image.new('RGBA', framesize, (0, 0, 0))
         draw = ImageDraw.Draw(bg)
-        draw.text((100, 100), convertedstring, font=font, fill=(255, 0, 0))
+        draw.text((10, 10), convertedstring,
+                  font=font, fill=(255, 255, 255))
         bg.save('out.png')
-        PNG2Gcode("out.png", 2.5, 210)
+        PNG2Gcode("out.png", 2.5, 70, True)
     print(convertedstring)
 
 
@@ -119,21 +120,41 @@ def GcodeParser():
             each = each[:each.index(';')]
             if each == '':
                 continue
+        print(each)
         gCode_commands.append(each)
     return gCode_commands
 
 
-def PNG2Gcode(pngname, heightmm, widthmm):
+def PNG2Gcode(pngname, heightmm, widthmm, brallille):
     filename = "this.stl"
-    print("Converion of STL started")
-    A = 256 * imread(pngname)
-    pic = Image.open(pngname)
-    A = A[:, :, 2] + 1.0*A[:, :, 0]  # Compose RGBA channels to give depth
-    A = gaussian_filter(A, 1)  # smoothing
-    p = numpy2stl(A, "fun.stl", scale=heightmm*0.01,
-                  mask_val=5., solid=True, max_width=widthmm)
+    if brallille == True:
+        bg = Image.new('RGBA', framesize, (255, 255, 255))
+        font = ImageFont.truetype("braille.ttf", 30)
+        draw = ImageDraw.Draw(bg)
+        draw.text((0, 0), "a", font=font, fill=(0, 0, 0))
+        bg.save('white.png')
+        A = 256 * imread(pngname)
+        A = A[:, :, 2] + 1.*A[:, :, 0]  # Compose RGBA channels to give depth
+        A /= 2
+        B = 256 * imread("white.png")
+        B = B[:, :, 2] + 1.*B[:, :, 0]  # Compose RGBA channels to give depth
+        A += B/2.25
+        A = gaussian_filter(A, 1)  # smoothing
+        print("Converion of STL started")
+        p = numpy2stl(A, "fun.stl", scale=0.05,
+                      mask_val=5., solid=True, max_width=150)
+    else:
+        A = 256 * imread(pngname)
+        A = A[:, :, 2] + 1.*A[:, :, 0]
+        A = gaussian_filter(A, 1)  # smoothing
+        p = numpy2stl(A, "fun.stl", scale=heightmm*0.01,
+                      mask_val=5., solid=True, max_width=widthmm)
     print("Converion of STL complete")
     print("Writing of STL started")
+    STL2Gcode(p, filename)
+
+
+def STL2Gcode(p, filename):
     p = str(p)
     p = p.split("\\n")
     l = 0
@@ -145,24 +166,33 @@ def PNG2Gcode(pngname, heightmm, widthmm):
         if l == 0:
             l += 1
             continue
+        q = ""
+        # i = i.split()
+        # for j in i:
+        #     try:
+        #         q += "{:f}".format(float(j))
+        #     except:
+        #         q += j
+        #     q += " "
         file1.write(i+"\n")
     file1.close()
-    return
     print("Writing of STL complete")
-    os.system(f"slic3r -o this.gcode --load config.ini {filename}")
+    return
+    os.system(f"mandoline {filename} -o this.stl")
     print("Gcode produced")
+    # GcodeParser()
 
 
 text = "Its not such a big problem, but If you paste a transparent background image on a transparent background using Image paste and pass a mass the edge will be black."
 # #text = "you can see there are some black outlines around text. "
 # text = "".join("a\n" for i in range(21))
-# braille(text)
-
+braille(text)
+#PNG2Gcode("download (1).png", 2, 70)
 # Original flow
 # fileScann
-if __name__ == "__main__":
-    print("hello")
-    thread1 = threading.Thread(target=fileScanner)
-    thread2 = threading.Thread(target=serialReader)
-    thread1.start()
-    thread2.start()
+# if __name__ == "__main__":
+#     print("hello")
+#     thread1 = threading.Thread(target=fileScanner)
+#     thread2 = threading.Thread(target=serialReader)
+#     thread1.start()
+#     thread2.start()
