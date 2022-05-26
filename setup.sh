@@ -1,7 +1,6 @@
 #!/bin/bash
 apt install python3
 apt install pip
-apt-get install bluez-tools
 apt-get install git
 apt-get update
 apt-get upgrade
@@ -12,13 +11,15 @@ make
 make load
 usermod -a -G dialout mukesh
 chmod a+rw /dev/ttyUSB0
-cd ..
-wget https://dl.slic3r.org/linux/old/slic3r-linux-x86_64-1-2-9-stable.tar.gz
-tar -zxvf slic3r-linux-x86_64-1-2-9-stable.tar.gz
-cd slic3r-linux-x86_64-1-2-9-stable/bin
+cd ~/Desktop
+mkdir 3Dprinter
+cd 3Dprinter
+wget 
 wget https://raw.githubusercontent.com/mukesh2k/3DPrinterAccesser/main/main.py
 wget https://raw.githubusercontent.com/mukesh2k/3DPrinterAccesser/main/config.ini
 wget https://raw.githubusercontent.com/mukesh2k/3DPrinterAccesser/main/braille.ttf
+wget https://github.com/davidk/PrusaSlicer-ARM.AppImage/releases/download/version_2.4.2/PrusaSlicer-version_2.4.2-aarch64.AppImage
+pip install printrun
 pip install pyserial
 pip install matplotlib
 pip install csdt_stl_tools
