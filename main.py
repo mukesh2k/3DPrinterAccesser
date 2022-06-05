@@ -1,18 +1,16 @@
 import time
-import threading
-#import RPi.GPIO as GPIO
 from matplotlib.pylab import imread
 from csdt_stl_tools import numpy2stl
 from scipy.ndimage import gaussian_filter
 import os
 from PIL import Image, ImageDraw, ImageFont
-import serial
 from printrun.printcore import printcore
 from printrun import gcoder
 import time
 
 portal = "/dev/ttyUSB0"
-cache = ""
+baudrate = 115200
+pather = "/home/pi/Desktop/3Dprinter/"
 
 
 def fileScanner():
@@ -20,8 +18,8 @@ def fileScanner():
     lis = []
     while len(lis) == 0:
         lis = os.listdir(pather)
-        lis = [i for i in lis if "." in i and (
-            i[i.index('.'):] == '.png' or i[i.index('.'):] == '.txt')]
+        lis = [j for j in lis if "." in j and (
+            j[j.index('.'):] == '.png' or j[j.index('.'):] == '.txt')]
     sort_list = sorted(lis)
     name = sort_list[0]
     if name[name.index('.'):] == ".png":
@@ -45,69 +43,103 @@ def fileScanner():
 framesize = (300, 400)
 hori_limit = 13
 veri_limit = 10
-
-
+fontsize=30
+frame=True
 def braille(inputString):
+    global framesize,hori_limit,veri_limit,fontsize
+    if frame==False:
+        framesize = (1800,1850)
+        hori_limit = 30
+        veri_limit = 14
+        fontsize=60
+    else:
+        framesize = (300, 400)
+        hori_limit = 13
+        veri_limit = 10
+        fontsize=30
     inputString = inputString.lower()
     print(pather)
-    font = ImageFont.truetype(f"{pather}braille.ttf", 30)
+    font = ImageFont.truetype(f"{pather}braille.ttf", fontsize)
     convertedstring = ""
-    inputString = inputString.split(' ')
-    cur, curline = 0, 0
+    inputString = inputString.split('\n')
+    print(inputString)
+    cur, curline = 0, 1
+    start=True
     for i in inputString:
-        if cur+len(i) < hori_limit:
-            convertedstring += (i+" ")
-            cur += len(i)+1
-        elif cur+len(i) == hori_limit:
-            convertedstring += i
-            cur += len(i)
-        else:
-            convertedstring += f"\n\n{i} "
-            cur = len(i)+1
-            curline += 1
-        if curline == veri_limit:
-            bg = Image.new('RGBA', framesize)
-            draw = ImageDraw.Draw(bg)
-            draw.text((100, 100), convertedstring, font=font)
-            bg.save(f'{pather}out.png')
-            PNG2STL(f"{pather}out.png", 2.5, 70, True)
-            convertedstring = ""
-            curline = 0
+        if i.isspace():
+            continue
+        if start==False:
+            convertedstring += f"\n\n"
             cur = 0
-            print(
-                "Take your print out. Remaining words will start print after 60 seconds")
-            a = 60
-            while a >= 0:
-                a -= 1
-                print(a)
-                time.sleep(1)
+            curline += 1
+            if curline == veri_limit:
+                convertedstring,curline,cur=repeat(convertedstring,font)
+        start=False
+        i=i.split(" ")
+        for j in i:
+            if cur+len(j) < hori_limit:
+                convertedstring += (j+" ")
+                cur += len(j)+1
+            elif cur+len(j) == hori_limit:
+                convertedstring += j
+                cur += len(j)
+            else:
+                convertedstring += f"\n\n{j} "
+                cur = len(j)+1
+                curline += 1
+            if curline == veri_limit:
+                convertedstring,curline,cur=repeat(convertedstring,font)
     if cur != 0 or curline != 0:
         bg = Image.new('RGBA', framesize, (0, 0, 0))
         draw = ImageDraw.Draw(bg)
         draw.text((10, 10), convertedstring,
                   font=font, fill=(255, 255, 255))
         bg.save(f'{pather}out.png')
-    PNG2STL(f"{pather}out.png", 2.5, 70, True)
-    print(convertedstring)
+    if frame==True:
+        PNG2STL(f"{pather}out.png", 2.5, 70, True)
+    else:
+        PNG2STL(f"{pather}out.png", 3,180 , False)
 
+def repeat(convertedstring,font):
+    print(convertedstring)
+    bg = Image.new('RGBA', framesize,(0, 0, 0))
+    draw = ImageDraw.Draw(bg)
+    draw.text((10, 10), convertedstring,
+                  font=font, fill=(255, 255, 255))
+    bg.save(f'{pather}out.png')
+    if frame==True:
+        PNG2STL(f"{pather}out.png", 2.5, 70, True)
+    else:
+        PNG2STL(f"{pather}out.png", 3,180 , False)
+    print(
+        "Take your print out. Remaining words will start print after 60 seconds")
+    a = 60
+    while a > 0:
+        a -= 1
+        print(a)
+        time.sleep(1)
+    return "",0,0
 
 def PNG2STL(pngname, heightmm, widthmm, brallille):
     print("Converion of STL started")
     filename = "this.stl"
     if brallille == True:
         bg = Image.new('RGBA', framesize, (255, 255, 255))
-        font = ImageFont.truetype(f"{pather}braille.ttf", 30)
+        font = ImageFont.truetype(f"{pather}braille.ttf", fontsize)
         draw = ImageDraw.Draw(bg)
         draw.text((0, 0), "a", font=font, fill=(0, 0, 0))
         bg.save(f'{pather}white.png')
-        dots = 256 * imread(pngname)
+        try:
+            dots = 256 * imread(f"{pngname}")
+        except:
+            print("Error")
+            return
         # Compose RGBA channels to give depth
-        dots = 1.*dots[:, :, 0]
+        dots = dots[:,:,2]+1.*dots[:, :, 0]
         dots /= 2
         surface = 256 * imread(f"{pather}white.png")
         os.system(f"rm {pather}out.png")
         os.system(f"rm {pather}white.png")
-        # Compose RGBA channels to give depth
         surface = surface[:, :, 2] + 1.*surface[:, :, 0]
         dots += surface/2.25
         dots = gaussian_filter(dots, 1)  # smoothing
@@ -115,8 +147,12 @@ def PNG2STL(pngname, heightmm, widthmm, brallille):
                       mask_val=5., solid=True, max_width=150)
     else:
         print(pngname)
-        dots = 256 * imread(f"{pngname}")
-        dots = 1.*dots[:, :, 0]
+        try:
+            dots = 256 * imread(f"{pngname}")
+        except:
+            print("Error")
+            return
+        dots = dots[:,:,2]+1.*dots[:, :, 0]
         dots = gaussian_filter(dots, 1)  # smoothing
         p = numpy2stl(dots, "fun.stl", scale=heightmm*0.01,
                       mask_val=5., solid=True, max_width=widthmm)
@@ -129,24 +165,23 @@ def STL2Gcode(p, filename):
     p = str(p)
     p = p.split("\\n")
     l = 0
-    file1 = open(f"{pather}{filename}", "w")  # append mode
+    file1 = open(f"{pather}{filename}", "w")
     file1.write("")
     file1.close()
     file1 = open(f"{pather}{filename}", "a")
-    for i in p:
+    for j in p:
         if l == 0:
             l += 1
             continue
         q = ""
-        file1.write(i+"\n")
+        file1.write(j+"\n")
     file1.close()
     print("Writing of STL complete")
-    return
     os.system(
         f"{pather}PrusaSlicer-version_2.4.2-armhf.AppImage -s {pather}{filename} --load {pather}config.ini")
     print("Gcode produced")
-    GcodeParser()
-
+    return
+    serialWriter(GcodeParser())
 
 def GcodeParser():
     a = ""
@@ -159,49 +194,25 @@ def GcodeParser():
             each = each[:each.index(';')]
             if each == '':
                 continue
-        # print(each)
         gCode_commands.append(each)
     print("Done")
     return gCode_commands
 
-
-def serialReader():
-    global serialPort
-    serialPort = serial.Serial(port=portal, baudrate=115200,
-                               bytesize=8, timeout=2, stopbits=serial.STOPBITS_ONE)
-    serialPort.close()
-    serialPort.open()
-    while 1:
-        print(serialPort.readline())
-    return
-
-
 def serialWriter(gcode):
-    p = printcore(portal, 115200)
-    gcode = gcoder.LightGCode(gcode)
+    p = printcore(portal, baudrate)
+    gcode = gcoder.LightGCode()
     while not p.online:
         time.sleep(0.1)
     p.startprint(gcode)
     while p.printing():
         pass
 
-
-text = "Its not such a big problem, but If you paste a transparent background image on a transparent background using Image paste and pass a mass the edge will be black."
-# #text = "you can see there are some black outlines around text. "
-# fileScann
-pather = "/home/pi/Desktop/3Dprinter/"
-pather = "/home/pi/Desktop/3Dprinter/"
-#pather = "/home/mukesh/Documents/test/"
 if __name__ == "__main__":
-    # GPIO.setmode(GPIO.BOARD)
-    # GPIO.setup(18, GPIO.OUT, initial=GPIO.LOW)
-    # GPIO.output(18, GPIO.HIGH)
     while 1:
         fileScanner()
         print("Take your print out. Next print will start after 60 seconds")
         a = 60
-        while a >= 0:
+        while a > 0:
             a -= 1
             print(a)
             time.sleep(1)
-    # GcodeParser()
